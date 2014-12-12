@@ -68,21 +68,24 @@ static int32_t _connectionCounter = 0;
   BOOL _virtualHEAD;
   
   CFHTTPMessageRef _requestMessage;
-  GCDWebServerRequest* _request;
   GCDWebServerHandler* _handler;
   CFHTTPMessageRef _responseMessage;
-  GCDWebServerResponse* _response;
   NSInteger _statusCode;
   
   BOOL _opened;
 #ifdef __GCDWEBSERVER_ENABLE_TESTING__
   NSUInteger _connectionIndex;
-  NSString* _requestPath;
   int _requestFD;
-  NSString* _responsePath;
   int _responseFD;
 #endif
 }
+
+@property (nonatomic, strong, readwrite) GCDWebServerRequest* request;
+@property (nonatomic, strong) GCDWebServerResponse* response;
+
+@property (nonatomic, strong) NSString* requestPath;
+@property (nonatomic, strong) NSString* responsePath;
+
 @end
 
 @implementation GCDWebServerConnection (Read)
@@ -148,14 +151,14 @@ static int32_t _connectionCounter = 0;
 }
 
 - (void)_readBodyWithRemainingLength:(NSUInteger)length completionBlock:(ReadBodyCompletionBlock)block {
-  GWS_DCHECK([_request hasBody] && ![_request usesChunkedTransferEncoding]);
+  GWS_DCHECK([self.request hasBody] && ![self.request usesChunkedTransferEncoding]);
   NSMutableData* bodyData = [[NSMutableData alloc] initWithCapacity:kBodyReadCapacity];
   [self _readData:bodyData withLength:length completionBlock:^(BOOL success) {
     
     if (success) {
       if (bodyData.length <= length) {
         NSError* error = nil;
-        if ([_request performWriteData:bodyData error:&error]) {
+        if ([self.request performWriteData:bodyData error:&error]) {
           NSUInteger remainingLength = length - bodyData.length;
           if (remainingLength) {
             [self _readBodyWithRemainingLength:remainingLength completionBlock:block];
@@ -188,7 +191,7 @@ static inline NSUInteger _ScanHexNumber(const void* bytes, NSUInteger size) {
 }
 
 - (void)_readNextBodyChunk:(NSMutableData*)chunkData completionBlock:(ReadBodyCompletionBlock)block {
-  GWS_DCHECK([_request hasBody] && [_request usesChunkedTransferEncoding]);
+  GWS_DCHECK([self.request hasBody] && [self.request usesChunkedTransferEncoding]);
   
   while (1) {
     NSRange range = [chunkData rangeOfData:_CRLFData options:0 range:NSMakeRange(0, chunkData.length)];
@@ -205,7 +208,7 @@ static inline NSUInteger _ScanHexNumber(const void* bytes, NSUInteger size) {
         const char* ptr = (char*)chunkData.bytes + range.location + range.length + length;
         if ((*ptr == '\r') && (*(ptr + 1) == '\n')) {
           NSError* error = nil;
-          if ([_request performWriteData:[chunkData subdataWithRange:NSMakeRange(range.location + range.length, length)] error:&error]) {
+          if ([self.request performWriteData:[chunkData subdataWithRange:NSMakeRange(range.location + range.length, length)] error:&error]) {
             [chunkData replaceBytesInRange:NSMakeRange(0, range.location + range.length + length + 2) withBytes:NULL length:0];
           } else {
             GWS_LOG_ERROR(@"Failed writing request body on socket %i: %@", _socket, error);
@@ -277,12 +280,12 @@ static inline NSUInteger _ScanHexNumber(const void* bytes, NSUInteger size) {
 }
 
 - (void)_writeBodyWithCompletionBlock:(WriteBodyCompletionBlock)block {
-  GWS_DCHECK([_response hasBody]);
-  [_response performReadDataWithCompletion:^(NSData* data, NSError* error) {
+  GWS_DCHECK([self.response hasBody]);
+  [self.response performReadDataWithCompletion:^(NSData* data, NSError* error) {
     
     if (data) {
       if (data.length) {
-        if (_response.usesChunkedTransferEncoding) {
+        if (self.response.usesChunkedTransferEncoding) {
           const char* hexString = [[NSString stringWithFormat:@"%lx", (unsigned long)data.length] UTF8String];
           size_t hexLength = strlen(hexString);
           NSData* chunk = [NSMutableData dataWithLength:(hexLength + 2 + data.length + 2)];
@@ -312,7 +315,7 @@ static inline NSUInteger _ScanHexNumber(const void* bytes, NSUInteger size) {
           
         }];
       } else {
-        if (_response.usesChunkedTransferEncoding) {
+        if (self.response.usesChunkedTransferEncoding) {
           [self _writeData:_lastChunkData withCompletionBlock:^(BOOL success) {
             
             block(success);
