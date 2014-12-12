@@ -88,6 +88,11 @@
  */
 @property(nonatomic, readonly) NSUInteger totalBytesWritten;
 
+/**
+ *  Returns the request associated with connection.
+ */
+@property(nonatomic, readonly) GCDWebServerRequest* request;
+
 @end
 
 /**

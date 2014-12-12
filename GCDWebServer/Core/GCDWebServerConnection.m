@@ -68,21 +68,24 @@ static int32_t _connectionCounter = 0;
   BOOL _virtualHEAD;
   
   CFHTTPMessageRef _requestMessage;
-  GCDWebServerRequest* _request;
   GCDWebServerHandler* _handler;
   CFHTTPMessageRef _responseMessage;
-  GCDWebServerResponse* _response;
   NSInteger _statusCode;
   
   BOOL _opened;
 #ifdef __GCDWEBSERVER_ENABLE_TESTING__
   NSUInteger _connectionIndex;
-  NSString* _requestPath;
   int _requestFD;
-  NSString* _responsePath;
   int _responseFD;
 #endif
 }
+
+@property (nonatomic, strong, readwrite) GCDWebServerRequest* request;
+@property (nonatomic, strong) GCDWebServerResponse* response;
+
+@property (nonatomic, strong) NSString* requestPath;
+@property (nonatomic, strong) NSString* responsePath;
+
 @end
 
 @implementation GCDWebServerConnection (Read)
